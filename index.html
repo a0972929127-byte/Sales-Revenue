@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>銷售單位數據報表（Demo）</title>
+<style>
+  :root{
+    --accent:#14605E;        /* BizLink 示意主色：用於邊框、表頭、強調 */
+    --accent-dark:#0C403F;
+    --beige:#F5F0E6;         /* 全體底色（淡米色） */
+    --surface:#FCFAF4;       /* 卡片底色 */
+    --line:#E4DCC9;
+    --muted:#7A7363;
+    --ok-bg:#E3F2E6; --ok-tx:#1B5E20;
+    --warn-bg:#FBF0D6; --warn-tx:#8A5A00;
+    --bad-bg:#FBE3E1; --bad-tx:#9B2C25;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--beige); color:#2B2B28;
+    font-family:"Segoe UI","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    font-size:14px; line-height:1.5;
+  }
+  .wrap{max-width:1280px; margin:0 auto; padding:18px 20px 40px;}
+
+  /* 標題列（BizLink 示意 Logo） */
+  .brand{display:flex; align-items:center; gap:14px;
+    border-bottom:3px solid var(--accent); padding-bottom:10px; margin-bottom:14px;}
+  .logo{font-size:24px; font-weight:700; letter-spacing:.5px; color:var(--accent);
+    border:2px solid var(--accent); border-radius:8px; padding:2px 12px; background:var(--surface);}
+  .logo small{color:var(--accent-dark); font-weight:400; font-size:12px;}
+  .title{font-size:19px; font-weight:600; color:var(--accent-dark);}
+  .demo-tag{display:inline-block; background:#FBE9C7; color:#8A5A00; border:1px solid #E6C57A;
+    border-radius:6px; padding:1px 8px; font-size:12px; margin-left:8px;}
+
+  /* 篩選區 */
+  .filters{background:var(--surface); border:1px solid var(--line); border-left:5px solid var(--accent);
+    border-radius:10px; padding:14px 16px; margin-bottom:14px;}
+  .frow{display:flex; flex-wrap:wrap; gap:18px 28px; align-items:flex-start;}
+  .fld{display:flex; flex-direction:column; gap:6px;}
+  .fld > label{font-size:12px; color:var(--muted); font-weight:600;}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; max-width:560px;}
+  .chip{cursor:pointer; user-select:none; border:1px solid var(--accent); color:var(--accent-dark);
+    background:var(--surface); border-radius:14px; padding:3px 12px; font-size:13px;}
+  .chip.on{background:var(--accent); color:#fff;}
+  select{border:1px solid var(--line); border-radius:8px; padding:5px 8px; background:#fff; font-size:13px;}
+  .ym{display:flex; align-items:center; gap:8px;}
+
+  /* 按鈕 */
+  .actions{display:flex; gap:10px; margin:12px 0 16px; flex-wrap:wrap;}
+  button{border:1px solid var(--accent); color:var(--accent-dark); background:var(--surface);
+    border-radius:8px; padding:7px 16px; font-weight:600; font-size:13px; cursor:pointer;}
+  button:hover{background:var(--accent); color:#fff;}
+  button.primary{background:var(--accent); color:#fff;}
+  button.primary:hover{background:var(--accent-dark);}
+
+  /* KPI 條 */
+  .kpis{display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:16px;}
+  .kpi{background:var(--surface); border:1px solid var(--line); border-left:5px solid var(--accent);
+    border-radius:10px; padding:10px 14px;}
+  .kpi .k-label{font-size:12px; color:var(--muted); margin-bottom:4px;}
+  .kpi .k-value{font-size:21px; font-weight:700; color:var(--accent-dark);}
+
+  /* 表格 */
+  .meta{color:var(--muted); font-size:12px; margin-bottom:8px;}
+  table{width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line);
+    border-radius:10px; overflow:hidden;}
+  thead th{background:var(--accent); color:#fff; font-weight:600; font-size:13px;
+    padding:9px 10px; text-align:left; white-space:nowrap;}
+  tbody td{padding:7px 10px; border-top:1px solid #EFEADD; font-size:13px;}
+  tbody tr:nth-child(even){background:#FBF8F1;}
+  td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  td.pct{text-align:center; font-weight:600; border-radius:0;}
+  td.name{font-weight:600; color:var(--accent-dark);}
+  .pct.ok{background:var(--ok-bg); color:var(--ok-tx);}
+  .pct.warn{background:var(--warn-bg); color:var(--warn-tx);}
+  .pct.bad{background:var(--bad-bg); color:var(--bad-tx);}
+  .empty{padding:24px; text-align:center; color:var(--muted); background:#fff;
+    border:1px dashed var(--line); border-radius:10px;}
+  .foot{color:var(--muted); font-size:12px; margin-top:14px;}
+
+  /* 列印：只留標題 + KPI + 表格，隱藏篩選與按鈕（仿物料平台「只印查詢結果」） */
+  @media print{
+    body{background:#fff;}
+    .filters,.actions,.no-print{display:none !important;}
+    thead th{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    .pct.ok,.pct.warn,.pct.bad{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  }
+  @media (max-width:860px){ .kpis{grid-template-columns:repeat(2,1fr);} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <div class="logo">BizLink<small> 示意</small></div>
+    <div class="title">銷售單位數據報表<span class="demo-tag">假資料 Demo · 非真實數字</span></div>
+  </div>
+
+  <!-- 篩選區 -->
+  <div class="filters no-print">
+    <div class="frow">
+      <div class="fld">
+        <label>Main BU（可多選，不選＝全部）</label>
+        <div class="chips" id="buChips"></div>
+      </div>
+      <div class="fld">
+        <label>Final Assigned Sales（可多選，不選＝全部）</label>
+        <div class="chips" id="repChips"></div>
+      </div>
+      <div class="fld">
+        <label>Year Month（範圍）</label>
+        <div class="ym">
+          <select id="ymStart"></select>
+          <span>~</span>
+          <select id="ymEnd"></select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 按鈕 -->
+  <div class="actions no-print">
+    <button class="primary" id="btnQuery">查詢</button>
+    <button id="btnReset">重設</button>
+    <button id="btnCsv">匯出 CSV</button>
+    <button id="btnPrint">列印</button>
+  </div>
+
+  <!-- KPI 條 -->
+  <div class="kpis" id="kpis"></div>
+
+  <div class="meta" id="meta"></div>
+
+  <!-- 表格 -->
+  <div id="tableArea"></div>
+
+  <div class="foot">※ 本頁為介面原型，所有數字與名稱皆為虛構。實際資料將由 DTO 串接後台後注入。</div>
+</div>
+
+<script>
+/* =========================================================================
+   假資料 + 計算邏輯（純前端，可放 GitHub Pages）
+   ⚠ 所有業務姓名、客戶、營收、預算皆為虛構，與真實人事物無關。
+   ========================================================================= */
+
+/* 固定種子的亂數，讓每次重整資料一致 */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const RAND = mulberry32(20260630);
+const rint=(lo,hi)=>Math.floor(RAND()*(hi-lo+1))+lo;            // 含端點
+const runif=(lo,hi)=>RAND()*(hi-lo)+lo;
+const choice=arr=>arr[Math.floor(RAND()*arr.length)];
+
+const MAIN_BUS=["ESBU","VSBU","HPCBU"];
+const SALES_REPS={                                              // name -> Main BU（虛構）
+  "Marcus Tan":"ESBU","Lydia Koh":"VSBU","Felix Ong":"HPCBU","Sophia Yeo":"ESBU",
+  "Henry Lim":"VSBU","Wendy Goh":"HPCBU","Oscar Teo":"ESBU","Iris Phua":"VSBU",
+  "Victor Sim":"HPCBU","Rachel Quek":"ESBU","Daniel Heng":"VSBU","Cindy Low":"HPCBU"};
+const REP_NAMES=Object.keys(SALES_REPS);
+const DIRECT_CUSTOMERS=["Nimbus Cloud Systems","Aurora Semiconductor","Vertex Optronics",
+  "Cobalt Networks","Helix Data Corp","Pioneer Microtech","Summit Photonics","Quasar Components"];
+
+/* 建立期間 2023-01 ~ 2026-06（'YYYY-MM' 字串，字典序＝時間序） */
+function buildPeriods(){
+  const out=[];
+  for(let y=2023;y<=2026;y++){
+    for(let m=1;m<=12;m++){
+      if(y===2026 && m>6) break;
+      out.push(`${y}-${String(m).padStart(2,"0")}`);
+    }
+  }
+  return out;
+}
+const PERIODS=buildPeriods();
+const ymDisplay=ym=>ym.replace("-",".");      // '2023-01' -> '2023.01'
+const ymKey=disp=>disp.replace(".","-");
+
+/* 產生明細層：每列＝某業務 × 某客戶 × 某月 */
+function buildDetail(){
+  const rows=[];
+  for(const rep of REP_NAMES){
+    const bu=SALES_REPS[rep];
+    const nCust=rint(3,5);
+    const pool=[...DIRECT_CUSTOMERS];
+    const custs=[];
+    for(let i=0;i<nCust;i++){ custs.push(pool.splice(Math.floor(RAND()*pool.length),1)[0]); }
+    const baseBudget={};
+    for(const c of custs) baseBudget[c]=rint(30,260)*1000;
+    for(const cust of custs){
+      let designIn=rep, fulfillment=rep;
+      if(RAND()<0.30) designIn=choice(REP_NAMES.filter(r=>r!==rep));
+      if(RAND()<0.20) fulfillment=choice(REP_NAMES.filter(r=>r!==rep));
+      for(const p of PERIODS){
+        const budget=baseBudget[cust]*runif(0.85,1.15);
+        const revenue=budget*runif(0.55,1.65);
+        rows.push({ym:p, rep, bu, designIn, fulfillment, cust,
+          revenue:Math.round(revenue*100)/100, budget:Math.round(budget*100)/100});
+      }
+    }
+  }
+  return rows;
+}
+
+/* 篩選：bus / reps 空陣列＝全部 */
+function filterDetail(rows,bus,reps,ymStart,ymEnd){
+  return rows.filter(r=>
+    r.ym>=ymStart && r.ym<=ymEnd &&
+    (bus.length===0 || bus.includes(r.bu)) &&
+    (reps.length===0 || reps.includes(r.rep)));
+}
+
+const GROUP=r=>[r.rep,r.bu,r.designIn,r.fulfillment,r.cust].join("||");
+
+function aggregate(rows){
+  const m=new Map();
+  for(const r of rows){
+    const k=GROUP(r);
+    if(!m.has(k)) m.set(k,{rep:r.rep,bu:r.bu,designIn:r.designIn,fulfillment:r.fulfillment,
+      cust:r.cust,revenue:0,budget:0});
+    const o=m.get(k); o.revenue+=r.revenue; o.budget+=r.budget;
+  }
+  return m;
+}
+
+/* 產生報表表格（含 Sales% 與 YTM%） */
+function buildTable(rows,bus,reps,ymStart,ymEnd){
+  const sel=filterDetail(rows,bus,reps,ymStart,ymEnd);
+  const aggSel=aggregate(sel);
+
+  // YTM 視窗：結束月當年 1 月 → 結束月
+  const endYear=ymEnd.slice(0,4);
+  const ytmStart=`${endYear}-01`;
+  const aggYtm=aggregate(filterDetail(rows,bus,reps,ytmStart,ymEnd));
+
+  const out=[];
+  for(const [k,o] of aggSel){
+    const y=aggYtm.get(k);
+    out.push({
+      rep:o.rep, bu:o.bu, designIn:o.designIn, fulfillment:o.fulfillment, cust:o.cust,
+      revenue:o.revenue, budget:o.budget,
+      salesAch:o.budget?o.revenue/o.budget:null,
+      ytmAch:(y&&y.budget)?y.revenue/y.budget:null,
+    });
+  }
+  out.sort((a,b)=> a.rep.localeCompare(b.rep) || a.cust.localeCompare(b.cust));
+  return {table:out, sel};
+}
+
+function computeKpis(sel){
+  let rev=0,bud=0; const reps=new Set(), custs=new Set();
+  for(const r of sel){ rev+=r.revenue; bud+=r.budget; reps.add(r.rep); custs.add(r.cust); }
+  return {revenue:rev, budget:bud, achievement:bud?rev/bud:0, nSales:reps.size, nCustomers:custs.size};
+}
+
+/* ---------- 顯示輔助 ---------- */
+const fmtMoney=v=>"$"+Math.round(v).toLocaleString("en-US");
+const fmtPct=v=>v==null?"–":(v*100).toFixed(1)+"%";
+const pctClass=v=>v==null?"":(v>=1?"ok":(v>=0.8?"warn":"bad"));
+
+/* =========================================================================
+   以下為畫面互動（DOM）。在 Node 測試時不會執行（無 document）。
+   ========================================================================= */
+if (typeof document !== "undefined") {
+  const DETAIL = buildDetail();
+
+  // 篩選狀態
+  const state = { bus:new Set(), reps:new Set() };
+
+  // 建 BU chips
+  const buBox=document.getElementById("buChips");
+  MAIN_BUS.forEach(bu=>{
+    const el=document.createElement("span"); el.className="chip"; el.textContent=bu;
+    el.onclick=()=>{ el.classList.toggle("on"); state.bus.has(bu)?state.bus.delete(bu):state.bus.add(bu); };
+    buBox.appendChild(el);
+  });
+  // 建 Sales chips
+  const repBox=document.getElementById("repChips");
+  REP_NAMES.forEach(rep=>{
+    const el=document.createElement("span"); el.className="chip"; el.textContent=rep;
+    el.onclick=()=>{ el.classList.toggle("on"); state.reps.has(rep)?state.reps.delete(rep):state.reps.add(rep); };
+    repBox.appendChild(el);
+  });
+  // 建 Year Month 下拉
+  const ymStartSel=document.getElementById("ymStart");
+  const ymEndSel=document.getElementById("ymEnd");
+  PERIODS.forEach(p=>{
+    const d=ymDisplay(p);
+    ymStartSel.add(new Option(d,p));
+    ymEndSel.add(new Option(d,p));
+  });
+  ymStartSel.value=PERIODS[0];
+  ymEndSel.value=PERIODS[PERIODS.length-1];
+
+  let currentTable=[];   // 供 CSV 匯出使用
+
+  function render(){
+    const bus=[...state.bus], reps=[...state.reps];
+    const ymS=ymStartSel.value, ymE=ymEndSel.value;
+    // 若起訖顛倒，自動對調
+    const [s,e]= ymS<=ymE ? [ymS,ymE] : [ymE,ymS];
+    const {table,sel}=buildTable(DETAIL,bus,reps,s,e);
+    currentTable=table;
+
+    // KPI
+    const k=computeKpis(sel);
+    document.getElementById("kpis").innerHTML=[
+      ["Total Revenue",fmtMoney(k.revenue)],
+      ["Total Budget Amount",fmtMoney(k.budget)],
+      ["Sales Achievement %",(k.achievement*100).toFixed(1)+"%"],
+      ["業務數",k.nSales],
+      ["客戶數",k.nCustomers],
+    ].map(([l,v])=>`<div class="kpi"><div class="k-label">${l}</div><div class="k-value">${v}</div></div>`).join("");
+
+    // meta
+    document.getElementById("meta").textContent=
+      `目前區間：${ymDisplay(s)} ~ ${ymDisplay(e)}　|　BU：${bus.length?bus.join("、"):"全部"}`
+      +`　|　業務：${reps.length?reps.join("、"):"全部"}　|　共 ${table.length} 列`;
+
+    // 表格
+    const area=document.getElementById("tableArea");
+    if(table.length===0){
+      area.innerHTML=`<div class="empty">這組篩選條件查不到資料，請調整 BU、業務或時間範圍後再按「查詢」。</div>`;
+      return;
+    }
+    const head=["Final Assigned Sales","Total Revenue","Total Budget Amount",
+      "Sales Achievement %","YTM Achievement %","Main BU","Design-in Sales",
+      "Fulfillment Sales","Direct Customer"];
+    const rowsHtml=table.map(r=>`<tr>
+      <td class="name">${r.rep}</td>
+      <td class="num">${fmtMoney(r.revenue)}</td>
+      <td class="num">${fmtMoney(r.budget)}</td>
+      <td class="pct ${pctClass(r.salesAch)}">${fmtPct(r.salesAch)}</td>
+      <td class="pct ${pctClass(r.ytmAch)}">${fmtPct(r.ytmAch)}</td>
+      <td class="name">${r.bu}</td>
+      <td>${r.designIn}</td>
+      <td>${r.fulfillment}</td>
+      <td>${r.cust}</td></tr>`).join("");
+    area.innerHTML=`<table><thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+      <tbody>${rowsHtml}</tbody></table>`;
+  }
+
+  function exportCsv(){
+    const head=["Final Assigned Sales","Total Revenue","Total Budget Amount",
+      "Sales Achievement %","YTM Achievement %","Main BU","Design-in Sales",
+      "Fulfillment Sales","Direct Customer"];
+    const lines=[head.join(",")];
+    for(const r of currentTable){
+      const vals=[r.rep, Math.round(r.revenue), Math.round(r.budget),
+        fmtPct(r.salesAch), fmtPct(r.ytmAch), r.bu, r.designIn, r.fulfillment, r.cust];
+      lines.push(vals.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
+    }
+    const blob=new Blob(["\uFEFF"+lines.join("\r\n")],{type:"text/csv;charset=utf-8;"}); // BOM：Excel 開中文不亂碼
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download="sales_report.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  function resetFilters(){
+    state.bus.clear(); state.reps.clear();
+    document.querySelectorAll(".chip.on").forEach(c=>c.classList.remove("on"));
+    ymStartSel.value=PERIODS[0];
+    ymEndSel.value=PERIODS[PERIODS.length-1];
+    render();
+  }
+
+  document.getElementById("btnQuery").onclick=render;
+  document.getElementById("btnReset").onclick=resetFilters;
+  document.getElementById("btnCsv").onclick=exportCsv;
+  document.getElementById("btnPrint").onclick=()=>window.print();
+
+  render();  // 進頁面先顯示全部
+}
+
+/* 匯出給 Node 測試用 */
+if (typeof module !== "undefined") {
+  module.exports={buildDetail,filterDetail,buildTable,computeKpis,PERIODS,REP_NAMES,MAIN_BUS};
+}
+</script>
+</body>
+</html>
